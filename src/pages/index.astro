@@ -1,19 +1,415 @@
----
-import Layout from '../layouts/Layout.astro';
-import Markdown from '../components/Markdown.astro';
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rituel Élégance | L'Empire</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet">
+    
+    <script src="https://unpkg.com/@solana/web3.js@1.87.1/lib/index.iife.min.js"></script>
 
-const explainer = `
-An Astro website can go way beyond static pages - on the right platform.
+    <style>
+        :root { --gold: #b8860b; --dark: #000; --red: #e74c3c; --green: #27ae60; }
+        body { margin: 0; font-family: 'Montserrat', sans-serif; background: #f4f4f4; color: #333; }
+        
+        .crypto-header { 
+            background: var(--dark); color: #fff; padding: 12px; font-size: 0.75rem; 
+            display: flex; justify-content: space-around; align-items: center; 
+            position: sticky; top: 0; z-index: 1001; border-bottom: 2px solid var(--gold); 
+            flex-wrap: wrap; gap: 10px; 
+        }
+        .val { color: var(--gold); font-weight: 900; }
+        .pct { font-size: 0.65rem; font-weight: 800; padding: 2px 4px; border-radius: 3px; margin-left: 4px; }
+        .up { background: rgba(39, 174, 96, 0.2); color: var(--green); }
+        .down { background: rgba(231, 76, 60, 0.2); color: var(--red); }
 
-Netlify supports not only [Streaming SSR](https://docs.astro.build/en/guides/server-side-rendering/#html-streaming) and fast [Edge Middleware](https://docs.astro.build/en/guides/middleware/), but also [on-demand revalidation](https://www.netlify.com/blog/cache-tags-and-purge-api-on-netlify/) and [stale-while-revalidate](https://www.netlify.com/blog/swr-and-fine-grained-cache-control/). 
-Any page or data can be rebuilt only when needed, without site visitors ever getting a performance hit.
-`;
----
+        header { background: #fff; text-align: center; padding: 30px 10px; border-bottom: 1px solid #ddd; }
+        h1 { margin: 0; font-weight: 900; font-size: 2rem; letter-spacing: -1px; color: var(--gold); }
 
-<Layout title="Welcome to Astro.">
-    <h1 class="mb-10">Netlify Platform Starter for Astro</h1>
-    <Markdown content={explainer} class="mb-10 text-lg" />
-    <p>
-        <a href="https://docs.netlify.com/frameworks/astro/" class="btn btn-lg sm:min-w-64">Read the Docs</a>
-    </p>
-</Layout>
+        .filter-nav { 
+            display: flex; overflow-x: auto; gap: 10px; padding: 15px; 
+            background: #fff; border-bottom: 1px solid #eee; 
+            position: sticky; top: 48px; z-index: 1000; 
+            scrollbar-width: none;
+        }
+        .filter-nav::-webkit-scrollbar { display: none; }
+        
+        .btn-cat { 
+            background: #eee; border: none; padding: 10px 22px; border-radius: 5px; 
+            font-weight: 900; font-size: 0.7rem; cursor: pointer; white-space: nowrap; 
+            transition: 0.3s;
+        }
+        .btn-cat.active { background: var(--gold); color: white; }
+
+        .container { max-width: 1200px; margin: 20px auto; padding: 0 15px; }
+        .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
+        @media (min-width: 768px) { .grid { grid-template-columns: repeat(4, 1fr); } }
+
+        .card { 
+            background: #fff; border-radius: 10px; overflow: hidden; 
+            display: flex; flex-direction: column; box-shadow: 0 4px 12px rgba(0,0,0,0.08); 
+            transition: transform 0.2s;
+        }
+        .card:hover { transform: translateY(-5px); }
+        .card img { width: 100%; height: 180px; object-fit: cover; background: #222; }
+        
+        .info { padding: 15px; flex-grow: 1; }
+        .info h3 { font-size: 0.8rem; margin: 0; color: #222; font-weight: 900; text-transform: uppercase; min-height: 40px; }
+        .info p { font-size: 0.7rem; color: #666; margin-top: 8px; line-height: 1.3; }
+        
+        .price-box { padding: 15px; background: #fafafa; border-top: 1px solid #eee; text-align: center; }
+        .p-euro { font-size: 1.4rem; font-weight: 900; color: var(--dark); }
+        .p-re { font-size: 0.75rem; color: var(--gold); font-weight: 800; margin-bottom: 10px; }
+        
+        .buy-btn { 
+            background: var(--gold); color: white; border: none; width: 100%; 
+            padding: 15px; font-weight: 900; cursor: pointer; transition: 0.3s;
+        }
+        .buy-btn:hover { background: #946d0a; }
+    </style>
+</head>
+<body>
+
+<div class="crypto-header">
+    <div>BTC: <span id="btc-price" class="val">...</span> <span id="btc-pct" class="pct">--%</span></div>
+    <div>SOL: <span id="sol-price" class="val">...</span> <span id="sol-pct" class="pct">--%</span></div>
+    <div>USDT: <span id="usdt-price" class="val">...</span> <span id="usdt-pct" class="pct">--%</span></div>
+    <div>$RE: <span id="re-price" class="val">...</span> <span id="re-pct" class="pct">--%</span></div>
+    <div id="wallet-btn" onclick="connectWallet()" style="cursor:pointer; color:var(--gold); font-weight:900; border: 2px solid var(--gold); padding: 4px 12px; border-radius: 5px;">CONNECTER WALLET</div>
+</div>
+
+<header>
+    <h1>RITUEL ÉLÉGANCE</h1>
+</header>
+
+<div class="filter-nav" id="cat-nav">
+    <button class="btn-cat active" onclick="filterItems('TOUT', event)">TOUT</button>
+</div>
+
+<div class="container">
+    <div class="grid" id="main-grid"></div>
+</div>
+
+<script>
+    const RE_BASE = 0.000100;
+    const SOL_BASE = 150.00;
+    const DESTINATION_WALLET = "3n2NkzNkg2q6AaScwXgvBfQvNpwwZMH7p9A1DmbtRnhJ";
+    let currentSolPriceEuro = 150;
+
+    // TABLEAU D'ARTICLES CORRIGÉ (Ajoutez vos liens d'images dans img: "")
+    const items = [
+        { n: "Tondeuse T9 Vintage Gold USB", c: "BARBER", p: 7.90, d: "Moteur puissant, finition métal gravé.", img: "" },
+        { n: "Rasoir de sécurité Double Edge", c: "BARBER", p: 6.45, d: "Rasage traditionnel haute précision.", img: "" },
+        { n: "Brosse Barbe Sanglier Pro", c: "BARBER", p: 4.80, d: "Poils naturels pour une barbe soyeuse.", img: "" },
+        { n: "Ciseaux Coupe Acier 6.0", c: "BARBER", p: 9.20, d: "Acier trempé, coupe nette professionnelle.", img: "" },
+        { n: "Peigne de poche pliable Inox", c: "BARBER", p: 4.10, d: "Format compact, ultra résistant.", img: "" },
+        { n: "Guide Traçage Barbe Symétrique", c: "BARBER", p: 3.90, d: "Contours parfaits en quelques secondes.", img: "" },
+        { n: "Huile Barbe Santal 30ml", c: "BARBER", p: 6.80, d: "Nourrit et parfume délicatement.", img: "" },
+        { n: "Blaireau Rasage Manche Bois", c: "BARBER", p: 5.50, d: "Mousse onctueuse et application facile.", img: "" },
+        { n: "Pierre d'Alun Bloc Naturel", c: "BARBER", p: 4.30, d: "Hémostatique et après-rasage naturel.", img: "" },
+        { n: "Tondeuse Nez/Oreilles Rotative", c: "BARBER", p: 6.10, d: "Efficace, sans douleur, pile incluse.", img: "" },
+        { n: "Cape Coiffeur Nylon Noir", c: "BARBER", p: 5.40, d: "Imperméable, fermeture ajustable.", img: "" },
+        { n: "Bol de rasage Inox Miroir", c: "BARBER", p: 5.20, d: "Idéal pour monter une mousse riche.", img: "" },
+        { n: "Vaporisateur Barber Pro 300ml", c: "BARBER", p: 6.90, d: "Brume fine et continue.", img: "" },
+        { n: "Lames Derby Extra (x100)", c: "BARBER", p: 8.50, d: "Pack économique, tranchant durable.", img: "" },
+        { n: "Peigne Chauffant Lissant 2-en-1", c: "BARBER", p: 14.80, d: "Lissage barbe et cheveux rapide.", img: "" },
+        { n: "Serviette Barbier Microfibre", c: "BARBER", p: 4.60, d: "Absorption maximale, douceur extrême.", img: "" },
+        { n: "Gel de Rasage Précision 100ml", c: "BARBER", p: 6.25, d: "Translucide pour contours visibles.", img: "" },
+        { n: "Miroir de Cou Triple Articulé", c: "BARBER", p: 18.90, d: "Vision 360° pour coupe autonome.", img: "" },
+        { n: "Stylo Remplissage Barbe Noir", c: "BARBER", p: 4.50, d: "Comble les zones clairsemées.", img: "" },
+        { n: "Tapis Station Barber Silicone", c: "BARBER", p: 11.30, d: "Antidérapant et résistant à la chaleur.", img: "" },
+        { n: "Kit Crochetage 24pcs + Cadenas", c: "SERRURERIE", p: 16.90, d: "Entraînement complet avec outils pro.", img: "" },
+        { n: "Pistolet Crochetage Manuel", c: "SERRURERIE", p: 22.50, d: "Ouverture rapide par percussion.", img: "" },
+        { n: "Extracteurs de clés cassées Pro", c: "SERRURERIE", p: 7.10, d: "10 pièces pour situations d'urgence.", img: "" },
+        { n: "Coussin d'air gonflable AirWedge", c: "SERRURERIE", p: 8.40, d: "Levage de porte sans rayures.", img: "" },
+        { n: "Pass-partout PTT T10/F10", c: "SERRURERIE", p: 12.80, d: "Ouverture boîtes aux lettres standard.", img: "" },
+        { n: "Lubrifiant Serrure Graphite", c: "SERRURERIE", p: 6.30, d: "Entretien sans encrassement.", img: "" },
+        { n: "Cadenas de pratique transparent", c: "SERRURERIE", p: 7.50, d: "Visualisez le mécanisme intérieur.", img: "" },
+        { n: "Outil Bypass Serrure à disque", c: "SERRURERIE", p: 14.20, d: "Pour antivols et serrures complexes.", img: "" },
+        { n: "Lames Radio d'ouverture fine", c: "SERRURERIE", p: 9.10, d: "Technique d'ouverture par la gâche.", img: "" },
+        { n: "Jeu de crochets Goso Pro", c: "SERRURERIE", p: 19.40, d: "Sélection de crochets haute qualité.", img: "" },
+        { n: "Peigne de serrure (Lot de 5)", c: "SERRURERIE", p: 8.20, d: "Ouverture par alignement simultané.", img: "" },
+        { n: "Clé d'entraînement ajustable", c: "SERRURERIE", p: 11.50, d: "S'adapte à plusieurs types de cylindres.", img: "" },
+        { n: "Extracteur de barillet Master", c: "SERRURERIE", p: 34.00, d: "Outil de force professionnel.", img: "" },
+        { n: "Kit d'impression de clés Pro", c: "SERRURERIE", p: 45.00, d: "Création de double par empreinte.", img: "" },
+        { n: "Boîte à clés sécurisée Code", c: "SERRURERIE", p: 15.60, d: "Acier renforcé, code à 4 chiffres.", img: "" },
+        { n: "Viseur de porte (Juda) HD", c: "SERRURERIE", p: 6.95, d: "Grand angle, vision claire.", img: "" },
+        { n: "Cadenas Bluetooth App Mobile", c: "SERRURERIE", p: 17.80, d: "Déverrouillage sans clé via smartphone.", img: "" },
+        { n: "Tendeur de serrure variable", c: "SERRURERIE", p: 4.80, d: "Indispensable pour le crochetage.", img: "" },
+        { n: "Aimant de récupération télescopique", c: "SERRURERIE", p: 5.20, d: "LED intégrée, puissance 2kg.", img: "" },
+        { n: "Tournevis de frappe Serrurerie", c: "SERRURERIE", p: 28.50, d: "Pour vis bloquées et goupilles.", img: "" },
+        { n: "Copieur RFID/NFC LCD Multi-Freq", c: "CLONAGE", p: 14.20, d: "Duplique 99% des badges du marché.", img: "" },
+        { n: "Lecteur ACR122U NFC Pro", c: "CLONAGE", p: 29.90, d: "Écriture et lecture NFC avancée.", img: "" },
+        { n: "Badges RFID 125khz (x10)", c: "CLONAGE", p: 5.80, d: "Porte-clés réinscriptibles.", img: "" },
+        { n: "Cartes NFC NTAG215 (x10)", c: "CLONAGE", p: 6.40, d: "Compatible Amiibo et domotique.", img: "" },
+        { n: "Bague intelligente NFC Metal", c: "CLONAGE", p: 9.80, d: "Stockez vos données sur votre doigt.", img: "" },
+        { n: "Copieur de télécommande 433mhz", c: "CLONAGE", p: 5.10, d: "Pour portails et garages.", img: "" },
+        { n: "Stickers NFC Invisibles (x10)", c: "CLONAGE", p: 4.70, d: "Collez vos raccourcis partout.", img: "" },
+        { n: "Bracelet RFID Silicone réglable", c: "CLONAGE", p: 4.90, d: "Étanche et pratique pour le sport.", img: "" },
+        { n: "Lecteur Bluetooth RFID Pocket", c: "CLONAGE", p: 21.50, d: "Connexion smartphone sans fil.", img: "" },
+        { n: "Badge UID Magic Card Gen2", c: "CLONAGE", p: 5.30, d: "Contourne les protections anti-copie.", img: "" },
+        { n: "Clé USB Sécurité FIDO2 U2F", c: "CLONAGE", p: 12.60, d: "Protection ultime de vos comptes.", img: "" },
+        { n: "Étui de blocage signal Faraday", c: "CLONAGE", p: 6.20, d: "Anti-piratage de clés sans contact.", img: "" },
+        { n: "Module RFID RC522 Arduino", c: "CLONAGE", p: 4.15, d: "Pour vos projets électroniques.", img: "" },
+        { n: "Copieur de clé Dallas iButton", c: "CLONAGE", p: 13.40, d: "Spécifique pour accès Vigik.", img: "" },
+        { n: "Badge RFID Inox Premium", c: "CLONAGE", p: 7.20, d: "Design élégant et indestructible.", img: "" },
+        { n: "Adaptateur USB NFC Mobile", c: "CLONAGE", p: 8.90, d: "Ajoute le NFC à votre PC.", img: "" },
+        { n: "Tags Inventaire RFID (x20)", c: "CLONAGE", p: 10.50, d: "Gestion de stock simplifiée.", img: "" },
+        { n: "Mini scanner puce animalière", c: "CLONAGE", p: 25.80, d: "Lecture puces d'identification.", img: "" },
+        { n: "Badge RFID Cuir Luxe", c: "CLONAGE", p: 5.90, d: "Élégance et technologie.", img: "" },
+        { n: "Proxmark3 Easy Kit Complet", c: "CLONAGE", p: 48.00, d: "L'outil ultime des experts RFID.", img: "" },
+        { n: "Scanner OBD2 Bluetooth ELM327", c: "AUTO", p: 7.50, d: "Effacez vos codes défauts.", img: "" },
+        { n: "Transmetteur FM Bluetooth 5.0", c: "AUTO", p: 6.20, d: "Musique et appels sur vieille radio.", img: "" },
+        { n: "Compresseur air portatif 12V", c: "AUTO", p: 19.90, d: "Gonflage rapide avec arrêt auto.", img: "" },
+        { n: "Aspirateur de voiture Turbo USB", c: "AUTO", p: 15.40, d: "Filtre HEPA, aspiration puissante.", img: "" },
+        { n: "Support Téléphone Magnétique", c: "AUTO", p: 4.10, d: "Fixation grille d'aération ultra stable.", img: "" },
+        { n: "Kit Réparation Rayures Pro", c: "AUTO", p: 3.80, d: "Efface les micro-rayures facilement.", img: "" },
+        { n: "Chargeur Allume-cigare Rapide", c: "AUTO", p: 5.50, d: "Double port USB QuickCharge 3.0.", img: "" },
+        { n: "Organisateur de coffre pliable", c: "AUTO", p: 12.20, d: "Rangement compartimenté robuste.", img: "" },
+        { n: "Caméra de recul Waterproof", c: "AUTO", p: 14.80, d: "Vision nocturne et grand angle.", img: "" },
+        { n: "Ampoules LED H7 Ultra White", c: "AUTO", p: 9.30, d: "Éclairage 6000K longue portée.", img: "" },
+        { n: "Gants Microfibre Lavage", c: "AUTO", p: 4.20, d: "Nettoyage doux sans traces.", img: "" },
+        { n: "Purificateur d'air Ionique", c: "AUTO", p: 8.50, d: "Élimine odeurs et poussières.", img: "" },
+        { n: "Traceur GPS temps réel 4G", c: "AUTO", p: 24.00, d: "Suivi précis et alertes vol.", img: "" },
+        { n: "Kit Polissage Optiques Phares", c: "AUTO", p: 11.50, d: "Restaure la clarté d'origine.", img: "" },
+        { n: "Pare-soleil Rétractable UV", c: "AUTO", p: 7.90, d: "Garde l'habitacle au frais.", img: "" },
+        { n: "Testeur de Liquide Frein", c: "AUTO", p: 6.40, d: "Vérifiez la sécurité en un clic.", img: "" },
+        { n: "Câbles de démarrage 2000A", c: "AUTO", p: 18.50, d: "Pour moteurs essence et diesel.", img: "" },
+        { n: "Bouton Start/Stop Lumineux", c: "AUTO", p: 5.10, d: "Look sportif universel.", img: "" },
+        { n: "Film Solaire Teinté 3m", c: "AUTO", p: 9.90, d: "Protection chaleur et intimité.", img: "" },
+        { n: "Alarme Vibration Sans Fil", c: "AUTO", p: 13.20, d: "Sirène 110dB, télécommandée.", img: "" },
+        { n: "Projecteur LED Solaire 100W", c: "SOLAIRE", p: 14.50, d: "Éclairage puissant, zéro facture.", img: "" },
+        { n: "Lampion Solaire Jardin (x4)", c: "SOLAIRE", p: 11.80, d: "Ambiance chaleureuse automatique.", img: "" },
+        { n: "Batterie Solaire 30000mAh", c: "SOLAIRE", p: 22.50, d: "Chargez partout grâce au soleil.", img: "" },
+        { n: "Guirlande Guinguette Solaire", c: "SOLAIRE", p: 9.90, d: "8 modes de lumière décorative.", img: "" },
+        { n: "Fontaine Solaire Bassin", c: "SOLAIRE", p: 13.40, d: "Jet d'eau autonome pour jardin.", img: "" },
+        { n: "Applique Murale Détecteur", c: "SOLAIRE", p: 8.20, d: "S'allume dès votre passage.", img: "" },
+        { n: "Radio de survie Solaire/Dynamo", c: "SOLAIRE", p: 18.90, d: "Lampe et chargeur intégrés.", img: "" },
+        { n: "Ventilateur Solaire Casquette", c: "SOLAIRE", p: 6.50, d: "Frais immédiat en plein soleil.", img: "" },
+        { n: "Spot Solaire Enterré (x4)", c: "SOLAIRE", p: 12.10, d: "Balisage d'allée résistant.", img: "" },
+        { n: "Lampe Camping Solaire USB", c: "SOLAIRE", p: 10.50, d: "Pliable et ultra légère.", img: "" },
+        { n: "Répulsif Animaux Solaire", c: "SOLAIRE", p: 11.20, d: "Ultra-sons contre les nuisibles.", img: "" },
+        { n: "Contrôleur de charge PWM 30A", c: "SOLAIRE", p: 13.80, d: "Gérez votre installation solaire.", img: "" },
+        { n: "Panneau Solaire Flexible 20W", c: "SOLAIRE", p: 28.00, d: "Idéal camping-car et bateau.", img: "" },
+        { n: "Douche Solaire 20L", c: "SOLAIRE", p: 12.50, d: "Eau chaude grâce aux UV.", img: "" },
+        { n: "Thermomètre Piscine Solaire", c: "SOLAIRE", p: 7.40, d: "Affichage digital LCD.", img: "" },
+        { n: "Lampe de poche Solaire UV", c: "SOLAIRE", p: 5.90, d: "Détection faux billets/tâches.", img: "" },
+        { n: "Pompe à oxygène Solaire", c: "SOLAIRE", p: 19.20, d: "Pour aquarium et bassins.", img: "" },
+        { n: "Horloge Murale Solaire", c: "SOLAIRE", p: 15.30, d: "Toujours à l'heure, sans pile.", img: "" },
+        { n: "Veilleuse Solaire Enfant", c: "SOLAIRE", p: 6.80, d: "Douce lumière pour la nuit.", img: "" },
+        { n: "Sac à dos Solaire Charger", c: "SOLAIRE", p: 35.00, d: "Prise USB externe intégrée.", img: "" },
+        { n: "Masque Visage Charbon Actif", c: "COSMETIQUE", p: 4.90, d: "Élimine points noirs et impuretés.", img: "" },
+        { n: "Sérum Acide Hyaluronique", c: "COSMETIQUE", p: 7.20, d: "Hydratation profonde anti-âge.", img: "" },
+        { n: "Patchs Yeux Collagène (x60)", c: "COSMETIQUE", p: 6.50, d: "Réduit cernes et poches.", img: "" },
+        { n: "Brosse Nettoyante Silicone", c: "COSMETIQUE", p: 5.80, d: "Vibrations soniques visage.", img: "" },
+        { n: "Rouge à Lèvres Mat Longue Tenue", c: "COSMETIQUE", p: 4.20, d: "Sans transfert, couleur intense.", img: "" },
+        { n: "Kit Blanchiment Dentaire LED", c: "COSMETIQUE", p: 13.50, d: "Sourire éclatant à domicile.", img: "" },
+        { n: "Huile de Ricin Pure 100ml", c: "COSMETIQUE", p: 7.80, d: "Pousse cils, sourcils et cheveux.", img: "" },
+        { n: "Gua Sha Quartz Rose", c: "COSMETIQUE", p: 5.40, d: "Massage drainant ancestral.", img: "" },
+        { n: "Palette Ombres Nude", c: "COSMETIQUE", p: 9.20, d: "12 teintes pigmentées.", img: "" },
+        { n: "Eponge Beauté Blender (x3)", c: "COSMETIQUE", p: 3.95, d: "Application teint sans trace.", img: "" },
+        { n: "Crème Hydratante Escargot", c: "COSMETIQUE", p: 8.40, d: "Réparatrice et cicatrisante.", img: "" },
+        { n: "Vernis Semi-Permanent (x5)", c: "COSMETIQUE", p: 12.10, d: "Tenue 3 semaines garantie.", img: "" },
+        { n: "Mascara Lash Lift Fiber", c: "COSMETIQUE", p: 5.10, d: "Volume et longueur extrêmes.", img: "" },
+        { n: "Eyeliner Waterproof Precision", c: "COSMETIQUE", p: 4.30, d: "Pointe feutre ultra fine.", img: "" },
+        { n: "Savon Noir Bio Artisanal", c: "COSMETIQUE", p: 5.50, d: "Exfoliant naturel corps.", img: "" },
+        { n: "Eau Micellaire Apaisante", c: "COSMETIQUE", p: 6.90, d: "Démaquille en un seul geste.", img: "" },
+        { n: "Gommage Corps Sucre/Coco", c: "COSMETIQUE", p: 8.90, d: "Peau douce et parfumée.", img: "" },
+        { n: "Brume Parfumée Cheveux", c: "COSMETIQUE", p: 7.40, d: "Fraîcheur longue durée.", img: "" },
+        { n: "Kit Manucure Complet USB", c: "COSMETIQUE", p: 15.80, d: "Ponceuse et accessoires inclus.", img: "" },
+        { n: "Miroir LED Maquillage", c: "COSMETIQUE", p: 11.20, d: "Éclairage tactile réglable.", img: "" },
+        { n: "Console Retro GameBoy 400", c: "JOUETS", p: 14.80, d: "Tous les classiques d'enfance.", img: "" },
+        { n: "Mini Drone Pocket Camera", c: "JOUETS", p: 19.50, d: "Prenez de la hauteur facilement.", img: "" },
+        { n: "Voiture Drift RC Vitesse", c: "JOUETS", p: 17.20, d: "4 roues motrices, 30km/h.", img: "" },
+        { n: "Tablette Dessin LCD 10\"", c: "JOUETS", p: 7.90, d: "Effaçable par simple bouton.", img: "" },
+        { n: "Pistolet à Bulles Géant", c: "JOUETS", p: 8.50, d: "Des milliers de bulles par minute.", img: "" },
+        { n: "Puzzle 3D Bois Tour Eiffel", c: "JOUETS", p: 9.10, d: "Maquette à monter sans colle.", img: "" },
+        { n: "Tamagotchi Virtual Pet", c: "JOUETS", p: 5.80, d: "Le retour du jouet culte.", img: "" },
+        { n: "Kit Slime DIY Galaxy", c: "JOUETS", p: 11.20, d: "Créez vos textures pailletées.", img: "" },
+        { n: "Peluche Pieuvre Réversible", c: "JOUETS", p: 5.20, d: "Exprimez votre humeur.", img: "" },
+        { n: "Cube Infini Anti-Stress", c: "JOUETS", p: 4.10, d: "Incontournable pour s'occuper.", img: "" },
+        { n: "Talkie Walkie Enfant (x2)", c: "JOUETS", p: 15.60, d: "Portée 3km en terrain libre.", img: "" },
+        { n: "Robot Interactif Dansant", c: "JOUETS", p: 13.90, d: "Musique et effets lumineux.", img: "" },
+        { n: "Circuit de billes Lumineux", c: "JOUETS", p: 12.40, d: "Construction créative.", img: "" },
+        { n: "Set de Magie 50 tours", c: "JOUETS", p: 10.50, d: "Apprenez les secrets des pros.", img: "" },
+        { n: "Yo-Yo Professionnel Alu", c: "JOUETS", p: 6.90, d: "Roulement à billes haute vitesse.", img: "" },
+        { n: "Microscope de poche 60x", c: "JOUETS", p: 7.80, d: "Explorez le monde invisible.", img: "" },
+        { n: "Jeu de fléchettes Magnétique", c: "JOUETS", p: 9.40, d: "Sans danger pour les murs.", img: "" },
+        { n: "Pistolet à eau électrique", c: "JOUETS", p: 16.20, d: "Tir automatique en continu.", img: "" },
+        { n: "Lego Technic Bugatti Clone", c: "JOUETS", p: 25.00, d: "Maquette complexe 1000+ pièces.", img: "" },
+        { n: "Dominos Automatiques Train", c: "JOUETS", p: 14.30, d: "Pose les dominos tout seul.", img: "" },
+        { n: "Écouteurs TWS Bluetooth 5.3", c: "AUDIO", p: 7.50, d: "Appairage auto, son cristal.", img: "" },
+        { n: "Enceinte Waterproof Douche", c: "AUDIO", p: 11.20, d: "Ventouse intégrée, micro mains-libres.", img: "" },
+        { n: "Casque Audio HiFi Bass", c: "AUDIO", p: 18.90, d: "Confortable, basses profondes.", img: "" },
+        { n: "Micro Cravate Sans Fil iPhone", c: "AUDIO", p: 13.50, d: "Idéal pour vidéos et streaming.", img: "" },
+        { n: "Récepteur Audio Bluetooth", c: "AUDIO", p: 5.20, d: "Rend votre autoradio Bluetooth.", img: "" },
+        { n: "Micro Karaoké Bluetooth", c: "AUDIO", p: 12.40, d: "Haut-parleur intégré et effets.", img: "" },
+        { n: "Adaptateur USB-C vers Jack", c: "AUDIO", p: 4.10, d: "Puce DAC haute qualité.", img: "" },
+        { n: "Support Casque Gaming RGB", c: "AUDIO", p: 11.80, d: "Organisez votre setup avec style.", img: "" },
+        { n: "Barre de Son PC USB", c: "AUDIO", p: 15.30, d: "Design compact sous écran.", img: "" },
+        { n: "Écouteurs Sport Tour d'Oreille", c: "AUDIO", p: 8.90, d: "Maintien parfait, résiste à la sueur.", img: "" },
+        { n: "Ampli Audio Mini 2.0", c: "AUDIO", p: 19.50, d: "Connectez vos enceintes passives.", img: "" },
+        { n: "Câble Audio Optique 2m", c: "AUDIO", p: 6.20, d: "Transmission numérique pure.", img: "" },
+        { n: "Haut-parleurs Bluetooth Retro", c: "AUDIO", p: 17.80, d: "Look vintage, son moderne.", img: "" },
+        { n: "Lecteur MP3 Sport Clip", c: "AUDIO", p: 9.10, d: "Léger, slot carte SD.", img: "" },
+        { n: "Micro Studio USB Condensateur", c: "AUDIO", p: 28.00, d: "Qualité podcast professionnelle.", img: "" },
+        { n: "Écouteurs conduction osseuse", c: "AUDIO", p: 22.40, d: "Écoutez en restant attentif.", img: "" },
+        { n: "Mixeur Audio 4 canaux", c: "AUDIO", p: 39.00, d: "Pour mixage live et DJ.", img: "" },
+        { n: "Mousse isolation Micro", c: "AUDIO", p: 14.50, d: "Élimine l'écho et les bruits.", img: "" },
+        { n: "Boitier Charge Écouteurs", c: "AUDIO", p: 10.20, d: "Compatible plusieurs modèles TWS.", img: "" },
+        { n: "Câble Jack 3.5mm Tressé", c: "AUDIO", p: 3.90, d: "Haute résistance, anti-nœuds.", img: "" },
+        { n: "Souris Gaming RGB 7200DPI", c: "INFORMATIQUE", p: 9.50, d: "7 boutons, poids ajustable.", img: "" },
+        { n: "Clavier Slim Sans Fil", c: "INFORMATIQUE", p: 16.80, d: "Frappe silencieuse, AZERTY.", img: "" },
+        { n: "Hub USB-C 7 en 1 HDMI", c: "INFORMATIQUE", p: 13.20, d: "Connectez tout sur votre laptop.", img: "" },
+        { n: "Tapis de souris XXL RGB", c: "INFORMATIQUE", p: 11.50, d: "Surface micro-texturée.", img: "" },
+        { n: "Support Laptop Aluminium", c: "INFORMATIQUE", p: 12.90, d: "Améliore le refroidissement.", img: "" },
+        { n: "Webcam Full HD 1080p", c: "INFORMATIQUE", p: 14.20, d: "Microphone intégré, autofocus.", img: "" },
+        { n: "Clé USB 3.0 128GB", c: "INFORMATIQUE", p: 8.50, d: "Transfert ultra rapide.", img: "" },
+        { n: "Adaptateur Wifi USB 600Mbps", c: "INFORMATIQUE", p: 6.90, d: "Double bande 2.4G/5G.", img: "" },
+        { n: "Câble HDMI 2.1 4K 2m", c: "INFORMATIQUE", p: 7.10, d: "Supporte le 120Hz.", img: "" },
+        { n: "Ventilateur PC RGB 120mm", c: "INFORMATIQUE", p: 5.80, d: "Silencieux, effet halo.", img: "" },
+        { n: "Boîtier Disque Dur Externe", c: "INFORMATIQUE", p: 9.20, d: "Recyclez vos vieux disques.", img: "" },
+        { n: "Lampe de moniteur LED", c: "INFORMATIQUE", p: 18.50, d: "Réduit la fatigue oculaire.", img: "" },
+        { n: "Nettoyant Clavier Gel", c: "INFORMATIQUE", p: 4.30, d: "Attrape la poussière partout.", img: "" },
+        { n: "Manette PC/PS3 Bluetooth", c: "INFORMATIQUE", p: 13.90, d: "Vibrations double choc.", img: "" },
+        { n: "Carte Son USB 7.1", c: "INFORMATIQUE", p: 5.50, d: "Améliore votre son PC.", img: "" },
+        { n: "Extracteur de touches Clavier", c: "INFORMATIQUE", p: 3.80, d: "Pour entretien mécanique.", img: "" },
+        { n: "Repose-poignet Mémoire Forme", c: "INFORMATIQUE", p: 7.40, d: "Confort longue durée.", img: "" },
+        { n: "Mini PC Android TV Box", c: "INFORMATIQUE", p: 29.00, d: "Streaming 4K et applications.", img: "" },
+        { n: "Switch HDMI 3 entrées", c: "INFORMATIQUE", p: 8.10, d: "Une seule prise pour 3 appareils.", img: "" },
+        { n: "Organisateur de câbles (x10)", c: "INFORMATIQUE", p: 4.50, d: "Fini les fils qui traînent.", img: "" },
+        { n: "Lunettes de Soleil Aviateur", c: "MODE", p: 6.90, d: "Verres polarisés, monture or.", img: "" },
+        { n: "Portefeuille Cuir Slim RFID", c: "MODE", p: 8.50, d: "Protection anti-piratage.", img: "" },
+        { n: "Montre Quartz Luxe Homme", c: "MODE", p: 12.80, d: "Cadran chronographe, étanche.", img: "" },
+        { n: "Ceinture Automatique Cuir", c: "MODE", p: 9.20, d: "Boucle métal, sans trous.", img: "" },
+        { n: "Bracelet Perles Oeil de Tigre", c: "MODE", p: 4.50, d: "Pierres naturelles protectrices.", img: "" },
+        { n: "Sacoche Bandoulière Antivol", c: "MODE", p: 14.90, d: "Tissu imperméable, port USB.", img: "" },
+        { n: "Bague Acier Inoxydable Spin", c: "MODE", p: 4.10, d: "Anti-anxiété, design épuré.", img: "" },
+        { n: "Casquette Vintage délavée", c: "MODE", p: 5.80, d: "Look urbain décontracté.", img: "" },
+        { n: "Chaussettes Fantaisie (x5)", c: "MODE", p: 7.50, d: "Coton peigné haute qualité.", img: "" },
+        { n: "Pince à cravate Gold", c: "MODE", p: 4.80, d: "Accessoire indispensable costume.", img: "" },
+        { n: "Porte-clés Cuir Tressé", c: "MODE", p: 3.90, d: "Finition faite main.", img: "" },
+        { n: "Bonnet Docker Coton", c: "MODE", p: 6.20, d: "Style marin intemporel.", img: "" },
+        { n: "Echarpe Cachemire Touch", c: "MODE", p: 8.90, d: "Douceur et chaleur extrême.", img: "" },
+        { n: "Noeud Papillon Pré-noué", c: "MODE", p: 4.30, d: "Satiné, taille réglable.", img: "" },
+        { n: "Sac Banane Urban Street", c: "MODE", p: 7.10, d: "Pratique pour vos essentiels.", img: "" },
+        { n: "Parapluie Mini de Poche", c: "MODE", p: 9.50, d: "Ultra compact, anti-vent.", img: "" },
+        { n: "Lunettes Anti-Lumière Bleue", c: "MODE", p: 6.40, d: "Protégez vos yeux des écrans.", img: "" },
+        { n: "Gants Tactiles Hiver", c: "MODE", p: 5.20, d: "Restez connecté au froid.", img: "" },
+        { n: "Broche Fleur Costume", c: "MODE", p: 3.50, d: "La touche finale d'élégance.", img: "" },
+        { n: "Lacets Élastiques No-Tie", c: "MODE", p: 3.20, d: "Enfilez vos chaussures sans nouer.", img: "" }
+    ];
+
+    // --- FONCTIONS WALLET ---
+    async function connectWallet() {
+        if (window.solana && window.solana.isPhantom) {
+            try {
+                const resp = await window.solana.connect();
+                document.getElementById('wallet-btn').innerText = resp.publicKey.toString().substring(0, 8) + "...";
+                return resp.publicKey;
+            } catch (err) { console.error("Connexion refusée"); }
+        } else {
+            alert("Phantom Wallet non détecté !");
+            window.open("https://phantom.app/", "_blank");
+        }
+    }
+
+    async function processPayment(priceEuro) {
+        const provider = window.solana;
+        if (!provider) return alert("Installez Phantom !");
+        try {
+            const resp = await provider.connect();
+            const buyerPublicKey = resp.publicKey;
+            const connection = new solanaWeb3.Connection(solanaWeb3.clusterApiUrl("mainnet-beta"), "confirmed");
+            const solAmount = priceEuro / currentSolPriceEuro;
+            const lamports = Math.floor(solAmount * solanaWeb3.LAMPORTS_PER_SOL);
+            const transaction = new solanaWeb3.Transaction().add(
+                solanaWeb3.SystemProgram.transfer({
+                    fromPubkey: buyerPublicKey,
+                    toPubkey: new solanaWeb3.PublicKey(DESTINATION_WALLET),
+                    lamports: lamports,
+                })
+            );
+            transaction.feePayer = buyerPublicKey;
+            const { blockhash } = await connection.getLatestBlockhash();
+            transaction.recentBlockhash = blockhash;
+            const { signature } = await provider.signAndSendTransaction(transaction);
+            alert("Succès ! Signature : " + signature.substring(0,12));
+        } catch (err) { alert("Erreur ou annulation."); }
+    }
+
+    // --- FONCTIONS BOUTIQUE ---
+    async function updateCrypto() {
+        try {
+            const r = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana,bitcoin,tether&vs_currencies=eur&include_24hr_change=true');
+            const d = await r.json();
+            currentSolPriceEuro = d.solana.eur;
+            document.getElementById('sol-price').innerText = currentSolPriceEuro.toFixed(2) + "€";
+            setPct('sol-pct', d.solana.eur_24h_change);
+            document.getElementById('btc-price').innerText = d.bitcoin.eur.toLocaleString() + "€";
+            setPct('btc-pct', d.bitcoin.eur_24h_change);
+            document.getElementById('usdt-price').innerText = d.tether.eur.toFixed(2) + "€";
+            setPct('usdt-pct', d.tether.eur_24h_change);
+            const reVal = RE_BASE * (currentSolPriceEuro / SOL_BASE);
+            document.getElementById('re-price').innerText = reVal.toFixed(6) + "€";
+            setPct('re-pct', d.solana.eur_24h_change);
+        } catch(e) { console.log("Erreur API"); }
+    }
+
+    function setPct(id, val) {
+        const el = document.getElementById(id);
+        if(!el) return;
+        el.innerText = (val >= 0 ? "+" : "") + val.toFixed(2) + "%";
+        el.className = "pct " + (val >= 0 ? "up" : "down");
+    }
+
+    function render(list) {
+        const grid = document.getElementById('main-grid');
+        grid.innerHTML = "";
+        list.forEach(item => {
+            // Si pas d'image définie, on crée un placeholder avec le nom du produit
+            const imgUrl = item.img && item.img !== "" 
+                ? item.img 
+                : `https://placehold.co/400x300/000000/b8860b?text=${encodeURIComponent(item.n)}`;
+            
+            grid.innerHTML += `
+                <div class="card">
+                    <img src="${imgUrl}" alt="${item.n}">
+                    <div class="info">
+                        <h3>${item.n}</h3>
+                        <p>${item.d || ""}</p>
+                    </div>
+                    <div class="price-box">
+                        <div class="p-euro">${item.p.toFixed(2)}€</div>
+                        <div class="p-re">${Math.round(item.p * 10000)} $RE</div>
+                    </div>
+                    <button class="buy-btn" onclick="processPayment(${item.p})">ACHETER EN SOL</button>
+                </div>`;
+        });
+    }
+
+    function filterItems(cat, e) {
+        document.querySelectorAll('.btn-cat').forEach(b => b.classList.remove('active'));
+        if (e) e.currentTarget.classList.add('active');
+        render(cat === 'TOUT' ? items : items.filter(i => i.c === cat));
+    }
+
+    // --- INITIALISATION NAVIGATION ---
+    const categories = [...new Set(items.map(i => i.c))];
+    const nav = document.getElementById('cat-nav');
+    categories.forEach(c => {
+        const b = document.createElement('button');
+        b.className = 'btn-cat';
+        b.innerText = c;
+        b.onclick = (e) => filterItems(c, e);
+        nav.appendChild(b);
+    });
+
+    // Lancement final
+    updateCrypto();
+    render(items);
+    setInterval(updateCrypto, 20000);
+</script>
+
+</body>
+</html>
